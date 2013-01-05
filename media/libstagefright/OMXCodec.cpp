@@ -131,6 +131,18 @@ static const int OMX_SEC_COLOR_FormatNV12TPhysicalAddress = 0x7F000001;
 static const int OMX_SEC_COLOR_FormatNV12LPhysicalAddress = 0x7F000002;
 static const int OMX_SEC_COLOR_FormatNV12LVirtualAddress = 0x7F000003;
 static const int OMX_SEC_COLOR_FormatNV12Tiled = 0x7FC00002;
+static int calc_plane(int width, int height)
+{
+    int mbX, mbY;
+
+    mbX = (width + 15)/16;
+    mbY = (height + 15)/16;
+
+    /* Alignment for interlaced processing */
+    mbY = (mbY + 1) / 2 * 2;
+
+    return (mbX * 16) * (mbY * 16);
+}
 #endif // USE_SAMSUNG_COLORFORMAT
 
 // Treat time out as an error if we have not received any output
@@ -2276,10 +2288,6 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
             def.format.video.nFrameWidth,
             def.format.video.nFrameHeight,
             eColorFormat);
-
-    if (mNativeWindow != NULL) {
-        initNativeWindowCrop();
-    }
 #endif
 
     if (err != 0) {
