@@ -151,13 +151,17 @@ void NuPlayer::Renderer::flush(bool audio, bool notifyComplete) {
     msg->post();
 }
 
-void NuPlayer::Renderer::signalTimeDiscontinuity() {
+void NuPlayer::Renderer::signalTimeDiscontinuity(bool audio) {
     Mutex::Autolock autoLock(mLock);
     // CHECK(mAudioQueue.empty());
     // CHECK(mVideoQueue.empty());
-    setAudioFirstAnchorTime(-1);
-    setAnchorTime(-1, -1);
-    setVideoLateByUs(0);
+    if (audio) {
+        setAudioFirstAnchorTime(-1);
+        setAnchorTime(-1, -1);
+    } else {
+        setVideoLateByUs(0);
+    }
+
     mSyncQueues = false;
 }
 
@@ -676,23 +680,20 @@ size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
 
 bool NuPlayer::Renderer::onDrainAudioQueue() {
     uint32_t numFramesPlayed;
-    status_t positionStatus = mAudioSink->getPosition(&numFramesPlayed);
-    if (positionStatus == NO_INIT) {
-        // The AudioSink track may not have been created yet, which returns NO_INIT.
-        // Check if EOS has been reached and call notifyEOS, so that this message
-        // is not lost before this funtion returns false below.
-        if (!mAudioQueue.empty()) {
-            QueueEntry *firstEntry = &*mAudioQueue.begin();
-            if (firstEntry->mBuffer == NULL) {
-                // EOS is reached
-                notifyEOS(true /*audio */, firstEntry->mFinalResult);
-                mAudioQueue.erase(mAudioQueue.begin());
+    if(!mAudioSink->ready() && !mAudioQueue.empty()) {
+        while (!mAudioQueue.empty()) {
+            QueueEntry *entry = &*mAudioQueue.begin();
+            if (entry->mBuffer == NULL) {
+                notifyEOS(true /* audio */, entry->mFinalResult);
             }
-            firstEntry = NULL;
-         }
-         return false;
-    } else if (positionStatus != OK) {
-               return false;
+            mAudioQueue.erase(mAudioQueue.begin());
+            entry = NULL;
+        }
+        return false;
+    }
+
+    if (mAudioSink->getPosition(&numFramesPlayed) != OK) {
+        return false;
     }
 
     ssize_t numFramesAvailableToWrite =
@@ -988,6 +989,7 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         PLAYER_STATS(logFrameDropped);
     } else {
         PLAYER_STATS(logFrameRendered);
+        PLAYER_STATS(profileStop, STATS_PROFILE_RESUME);
     }
 }
 
@@ -1159,7 +1161,9 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
     {
          Mutex::Autolock autoLock(mLock);
          syncQueuesDone_l();
-         setPauseStartedTimeRealUs(-1);
+         if (!(offloadingAudio() && mPaused)) {
+             setPauseStartedTimeRealUs(-1);
+         }
          setAnchorTime(-1, -1);
     }
 
@@ -1346,7 +1350,6 @@ void NuPlayer::Renderer::onResume() {
     if (!mVideoQueue.empty()) {
         postDrainVideoQueue_l();
     }
-    PLAYER_STATS(profileStop, STATS_PROFILE_RESUME);
 }
 
 void NuPlayer::Renderer::onSetVideoFrameRate(float fps) {

@@ -2255,6 +2255,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         return err;
     }
 
+<<<<<<< HEAD
     err = native_window_set_buffers_dimensions(
 	    mNativeWindow.get(),
 	    def.format.video.nFrameWidth,
@@ -2288,6 +2289,18 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
     err = native_window_set_buffers_format(
 	    mNativeWindow.get(),
 	    eColorFormat);
+#elif defined(MTK_HARDWARE)
+    err = native_window_set_buffers_geometry(
+            mNativeWindow.get(),
+            def.format.video.nStride,
+            def.format.video.nSliceHeight,
+            def.format.video.eColorFormat);
+#else
+    err = native_window_set_buffers_geometry(
+            mNativeWindow.get(),
+            def.format.video.nFrameWidth,
+            def.format.video.nFrameHeight,
+            def.format.video.eColorFormat);
 #endif
 
     if (err != 0) {
@@ -2338,6 +2351,10 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
 
     ALOGV("native_window_set_usage usage=0x%lx", usage);
 
+
+#ifdef MTK_HARDWARE
+    usage |= (GRALLOC_USAGE_SW_WRITE_OFTEN | GRALLOC_USAGE_SW_READ_OFTEN);
+#endif
     err = native_window_set_usage(
             mNativeWindow.get(), usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP);
 
