@@ -2255,7 +2255,6 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         return err;
     }
 
-<<<<<<< HEAD
     err = native_window_set_buffers_dimensions(
 	    mNativeWindow.get(),
 	    def.format.video.nFrameWidth,
